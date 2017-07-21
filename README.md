@@ -1,6 +1,10 @@
 # discord-pusher
 A small Go web app that pushes build notifications to [Discord](https://discordapp.com/) for [BitBucket](https://bitbucket.org/) and [Unity](https://unity3d.com/).
 
+![discord-pusher-ui](https://user-images.githubusercontent.com/8398/28479135-1db39f1e-6e29-11e7-8ccc-08eebc422fcb.png)
+
+![discord-build-image](https://user-images.githubusercontent.com/8398/28479297-cbb1f4a8-6e29-11e7-9bbe-cdc26508720c.png)
+
 ## Usage
 - deploy the application to wherever you would like it to run. currently only Google App Engine is supported but it can be extended to other hosting environments via the [discord-pusher-deps](https://github.com/clavoie/discord-pusher-deps) package
 - open `http://yourhost.com/` in your browser where the application is deployed
