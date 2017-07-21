@@ -5,25 +5,24 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-
-	"google.golang.org/appengine"
-	"google.golang.org/appengine/log"
 )
 
 func tryDecodeJson(dst interface{}, r *http.Request) bool {
-	defer func(r *http.Request) {
+	hc := contextFn(r)
+
+	defer func() {
 		err := r.Body.Close()
 
 		if err != nil {
-			log.Errorf(appengine.NewContext(r), "could not close request body: %v", err)
+			hc.Errorf("could not close request body: %v", err)
 		}
-	}(r)
+	}()
 
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(dst)
 
 	if err != nil {
-		log.Errorf(appengine.NewContext(r), "could not decode json: %v", err)
+		hc.Errorf("could not decode json: %v", err)
 		return false
 	}
 

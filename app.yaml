@@ -1,6 +1,9 @@
 runtime: go
 api_version: go1
 
+env_variables:
+  DISCORD_PUSHER_TYPE: 'app_engine'
+
 handlers:
 - url: /favicon.ico
   static_files: images/favicon.ico

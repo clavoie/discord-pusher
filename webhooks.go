@@ -7,29 +7,16 @@ import (
 	"net/url"
 	"sort"
 	"strings"
-	"time"
 
+	"github.com/clavoie/discord-pusher-deps/types"
 	uuid "github.com/nu7hatch/gouuid"
-
-	"google.golang.org/appengine"
-	"google.golang.org/appengine/datastore"
-	"google.golang.org/appengine/log"
-	"google.golang.org/appengine/urlfetch"
 )
-
-const webhookKind = "Webhook"
 
 type hookHandlerFn func(*http.Request) *discordWebhook
 
 var webhooks = map[string]hookHandlerFn{
 	"bitbucket": bitbucketHandler,
 	"unity":     unityHandler,
-}
-
-type hookDal struct {
-	DiscordHook string
-	Hook        string
-	Type        string
 }
 
 func hookTypes() []string {
@@ -43,8 +30,7 @@ func hookTypes() []string {
 	return types
 }
 
-func addHook(typeName, webhookUrl string, r *http.Request) string {
-	appContext := appengine.NewContext(r)
+func addHook(typeName, webhookUrl string, hc types.HookContext) string {
 	userError := ""
 
 	_, hasWebhookType := webhooks[typeName]
@@ -56,96 +42,78 @@ func addHook(typeName, webhookUrl string, r *http.Request) string {
 	_, err := url.ParseRequestURI(webhookUrl)
 
 	if err != nil {
-		log.Errorf(appContext, "%v", err)
+		hc.Errorf("%v", err)
 		return fmt.Sprintf("Invalid webhook url: %v", webhookUrl)
 	}
 
-	q := datastore.NewQuery(webhookKind).Filter("DiscordHook = ", webhookUrl).Filter("Type =", typeName).Limit(1)
-	dals := make([]*hookDal, 0, 1)
-	_, err = q.GetAll(appContext, &dals)
+	dal, err := hc.GetByTypeUrl(typeName, webhookUrl)
 
 	if err != nil {
-		log.Errorf(appContext, "%v", err)
+		hc.Errorf("%v", err)
 		return "An error occured while communicating with the datastore"
 	}
 
-	if len(dals) > 0 {
+	if dal != nil {
 		return "A webhook of that type and url already exist"
 	}
 
-	key := datastore.NewIncompleteKey(appContext, webhookKind, nil)
 	id, err := uuid.NewV4()
 
 	if err != nil {
-		log.Errorf(appContext, "%v", err)
+		hc.Errorf("%v", err)
 		return "An error occured while generating a new webhook"
 	}
 
-	dal := &hookDal{webhookUrl, strings.Replace(id.String(), "-", "", -1), typeName}
-	_, err = datastore.Put(appContext, key, dal)
+	dal = &types.HookDal{webhookUrl, strings.Replace(id.String(), "-", "", -1), typeName}
+	err = hc.Put(dal)
 
 	if err != nil {
-		log.Errorf(appContext, "%v", err)
+		hc.Errorf("%v", err)
 		return "An error occured while communicating with the datastore"
 	}
 
-	time.Sleep(time.Second)
 	return userError
 }
 
-func allHooks(r *http.Request) ([]*datastore.Key, []*hookDal) {
-	appContext := appengine.NewContext(r)
-	q := datastore.NewQuery(webhookKind)
-	dals := make([]*hookDal, 0, 10)
-	keys, err := q.GetAll(appContext, &dals)
+func allHooks(hc types.HookContext) ([]string, []*types.HookDal) {
+	keys, dals, err := hc.GetAll()
 
 	if err != nil {
-		log.Errorf(appContext, "%v", err)
+		hc.Errorf("%v", err)
+		return []string{}, []*types.HookDal{}
 	}
 
 	return keys, dals
 }
 
-func deleteHook(encodedKey string, r *http.Request) string {
-	appContext := appengine.NewContext(r)
-	key, err := datastore.DecodeKey(encodedKey)
+func deleteHook(encodedKey string, hc types.HookContext) string {
+	err := hc.Delete(encodedKey)
 
 	if err != nil {
-		log.Errorf(appContext, "%v", err)
-		return "Invalid webhook key"
+		hc.Errorf("%v", err)
+		return "Could not delete webhook"
 	}
 
-	err = datastore.Delete(appContext, key)
-
-	if err != nil {
-		log.Errorf(appContext, "%v", err)
-		return "Error communicating with the db"
-	}
-
-	time.Sleep(time.Second)
 	return ""
 }
 
 func dispatchHook(hookId string, r *http.Request) {
-	appContext := appengine.NewContext(r)
-	q := datastore.NewQuery(webhookKind).Filter("Hook =", hookId).Limit(1)
-	dals := make([]*hookDal, 0, 1)
-	_, err := q.GetAll(appContext, &dals)
+	hc := contextFn(r)
+	dal, err := hc.GetByHook(hookId)
 
 	if err != nil {
-		log.Errorf(appContext, "%v", err)
+		hc.Errorf("%v", err)
 		return
 	}
 
-	if len(dals) < 1 {
+	if dal == nil {
 		return
 	}
 
-	dal := dals[0]
 	handler, hasHandler := webhooks[dal.Type]
 
 	if hasHandler == false {
-		log.Errorf(appContext, "unknown handler type: %v", dal.Type)
+		hc.Errorf("unknown handler type: %v", dal.Type)
 		return
 	}
 
@@ -158,42 +126,40 @@ func dispatchHook(hookId string, r *http.Request) {
 	reader, err := tryEncodeJson(discordPayload)
 
 	if err != nil {
-		log.Errorf(appContext, "could not encode payload: %v", err)
+		hc.Errorf("could not encode payload: %v", err)
 		return
 	}
 
-	client := urlfetch.Client(appContext)
-	resp, err := client.Post(dal.DiscordHook, "application/json", reader)
+	resp, err := hc.UrlPost(dal, reader)
 
 	if err != nil {
-		log.Errorf(appContext, "post to discord failed: %v", err)
+		hc.Errorf("post to discord failed: %v", err)
 		return
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		dispatchErrHandler(resp, r)
+		dispatchErrHandler(resp, hc)
 	}
 }
 
-func dispatchErrHandler(resp *http.Response, r *http.Request) {
-	appContext := appengine.NewContext(r)
-	log.Errorf(appContext, "discord response status: %v", resp.StatusCode)
+func dispatchErrHandler(resp *http.Response, hc types.HookContext) {
+	hc.Errorf("discord response status: %v", resp.StatusCode)
 
-	defer func(r *http.Request) {
+	defer func(hc types.HookContext) {
 		err := resp.Body.Close()
 
 		if err != nil {
-			log.Errorf(appengine.NewContext(r), "could not close discord body: %v", err)
+			hc.Errorf("could not close discord body: %v", err)
 		}
-	}(r)
+	}(hc)
 
 	var buffer bytes.Buffer
 	_, err := buffer.ReadFrom(resp.Body)
 
 	if err != nil {
-		log.Errorf(appContext, "could not read from discord response body: %v", err)
+		hc.Errorf("could not read from discord response body: %v", err)
 		return
 	}
 
-	log.Errorf(appContext, "discord err body: %v", buffer.String())
+	hc.Errorf("discord err body: %v", buffer.String())
 }

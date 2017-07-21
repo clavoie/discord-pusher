@@ -4,7 +4,7 @@ import (
 	"html/template"
 	"net/http"
 
-	"google.golang.org/appengine/datastore"
+	"github.com/clavoie/discord-pusher-deps/types"
 )
 
 var rootTemplate = template.Must(template.ParseFiles("index.html"))
@@ -21,12 +21,12 @@ type hookParam struct {
 	Url  string
 }
 
-func newParams(keys []*datastore.Key, dals []*hookDal) []*hookParam {
+func newParams(keys []string, dals []*types.HookDal) []*hookParam {
 	hooks := make([]*hookParam, len(keys))
 
 	for index, key := range keys {
 		dal := dals[index]
-		hook := &hookParam{key.Encode(), dal.Type, dal.DiscordHook}
+		hook := &hookParam{key, dal.Type, dal.DiscordHook}
 		hooks[index] = hook
 	}
 
@@ -43,7 +43,7 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 
 	params := new(rootParams)
 	params.Error = err
-	params.Hooks = newParams(allHooks(r))
+	params.Hooks = newParams(allHooks(contextFn(r)))
 	params.HookTypes = hookTypes()
 
 	rootTemplate.Execute(w, params)

@@ -2,9 +2,6 @@ package main
 
 import (
 	"net/http"
-
-	"google.golang.org/appengine"
-	"google.golang.org/appengine/log"
 )
 
 func addHandler(w http.ResponseWriter, r *http.Request) {
@@ -14,13 +11,14 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := r.ParseForm()
+	hc := contextFn(r)
 
 	if err != nil {
-		log.Errorf(appengine.NewContext(r), "%v", err)
+		hc.Errorf("%v", err)
 		redirectToRoot("Could not parse the request", w, r)
 		return
 	}
 
-	userError := addHook(r.PostForm.Get("type"), r.PostForm.Get("url"), r)
+	userError := addHook(r.PostForm.Get("type"), r.PostForm.Get("url"), hc)
 	redirectToRoot(userError, w, r)
 }
