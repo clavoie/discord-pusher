@@ -16,9 +16,10 @@ type rootParams struct {
 }
 
 type hookParam struct {
-	Key  string
-	Type string
-	Url  string
+	HookUrl string
+	Key     string
+	Type    string
+	Url     string
 }
 
 func newParams(keys []string, dals []*types.HookDal) []*hookParam {
@@ -26,7 +27,8 @@ func newParams(keys []string, dals []*types.HookDal) []*hookParam {
 
 	for index, key := range keys {
 		dal := dals[index]
-		hook := &hookParam{key, dal.Type, dal.DiscordHook}
+		hookUrl := hookHandlerUrl + dal.Hook
+		hook := &hookParam{hookUrl, key, dal.Type, dal.DiscordHook}
 		hooks[index] = hook
 	}
 

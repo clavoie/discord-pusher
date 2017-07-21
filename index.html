@@ -55,14 +55,26 @@
       </form>
       <hr />
       <h2>Current Hooks</h2>
-      {{range .Hooks}}
-      <div class="row">
-        <div class="four columns">{{.Type}}</div>
-        <div class="six columns" style="overflow-wrap:break-word;">{{.Url}}</div>
-        <div class="two columns"><a onclick="return confirm('Are you sure you want to delete this hook?')" href="/delete?k={{.Key}}">delete</a></div>
-      </div>
+      {{if .Hooks}}
+      <table>
+        <thead>
+          <th>Type</th>
+          <th>Hook</th>
+          <th>Discord Hook</th>
+          <th>Remove</th>
+        </thead>
+        <tbody>
+          {{range .Hooks}}
+          <tr>
+            <td>{{.Type}}</td>
+            <td style="font-size:xx-small;overflow-wrap:break-word;"><script>document.write(window.location.origin)</script>{{.HookUrl}}</td>
+            <td style="font-size:xx-small;overflow-wrap:break-word;">{{.Url}}</td>
+            <td><a onclick="return confirm('Are you sure you want to delete this hook?')" href="/delete?k={{.Key}}">delete</a></td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
       {{end}}
-    </div>
     </div>
 
     <!-- End Document -->
