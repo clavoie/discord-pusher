@@ -34,10 +34,10 @@ func bitbucketHandler(r *http.Request) *discordWebhook {
 	}
 
 	discordPayload := new(discordWebhook)
-	discordPayload.Content = fmt.Sprintf("%v build on %v: %v", buildStatus.Repo.Name, buildStatus.CommitStatus.Refname, buildStatus.CommitStatus.State)
+	discordPayload.Content = fmt.Sprintf("%v build on %v", buildStatus.Repo.Name, buildStatus.CommitStatus.Refname)
 
 	embed := new(discordEmbed)
-	embed.Title = discordPayload.Content
+	embed.Title = buildStatus.CommitStatus.State
 	embed.Description = buildStatus.CommitStatus.Commit.Message
 	embed.Url = buildStatus.CommitStatus.Url
 
